@@ -26,6 +26,25 @@ describe Delayed::Backend::ActiveRecord::Job do
     end
   end
 
+  describe "reserve" do
+    let(:worker) { Delayed::Worker.new(name: "worker01", read_ahead: 2) }
+
+    context "multi queues and reserve one of queue" do
+      before do
+        Delayed::Backend::ActiveRecord.configuration.run_simultaneous_queues = true
+      end
+
+      it "uses the plain sql version" do
+
+        3.times.each do | t |
+          Delayed::Backend::ActiveRecord::Job.enqueue payload_object: EnqueueJobMod.new, queue: "test_#{t}"
+          Delayed::Backend::ActiveRecord::Job.enqueue payload_object: EnqueueJobMod.new, queue: "test_#{t}"
+        end
+        allow(Time).to receive(:now).and_return(Time.now + 20.minutes)
+
+        Delayed::Backend::ActiveRecord::Job.reserve(worker)
+      end
+    end
   describe "reserve_with_scope" do
     let(:relation_class) { Delayed::Job.limit(1).class }
     let(:worker) { instance_double(Delayed::Worker, name: "worker01", read_ahead: 1) }

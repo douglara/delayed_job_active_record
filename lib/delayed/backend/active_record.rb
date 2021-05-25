@@ -6,9 +6,11 @@ module Delayed
     module ActiveRecord
       class Configuration
         attr_reader :reserve_sql_strategy
+        attr_reader :run_simultaneous_queues
 
         def initialize
           self.reserve_sql_strategy = :optimized_sql
+          self.run_simultaneous_queues = false
         end
 
         def reserve_sql_strategy=(val)
@@ -17,6 +19,10 @@ module Delayed
           end
 
           @reserve_sql_strategy = val
+        end
+
+        def run_simultaneous_queues=(val)
+          @run_simultaneous_queues = val
         end
       end
 
@@ -41,7 +47,13 @@ module Delayed
         scope :by_priority, lambda { order("priority ASC, run_at ASC") }
         scope :min_priority, lambda { where("priority >= ?", Worker.min_priority) if Worker.min_priority }
         scope :max_priority, lambda { where("priority <= ?", Worker.max_priority) if Worker.max_priority }
-        scope :for_queues, lambda { |queues = Worker.queues| where(queue: queues) if Array(queues).any? }
+        scope :for_queues, lambda { |queues = Worker.queues| where(queue: queues).limit(1) if Array(queues).any? }
+        scope :unique_job_for_queues, lambda {
+          queues_running = self.all.distinct.pluck(:queue)
+          return if queues_running.count <= 1
+
+          group(:queue)
+        }
 
         before_save :set_default_run_at
 
@@ -81,6 +93,8 @@ module Delayed
             .max_priority
             .for_queues
             .by_priority
+
+          ready_scope = ready_scope.unique_job_for_queues if Delayed::Backend::ActiveRecord.configuration.run_simultaneous_queues == true
 
           reserve_with_scope(ready_scope, worker, db_time_now)
         end
