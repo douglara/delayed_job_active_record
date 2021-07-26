@@ -27,24 +27,34 @@ describe Delayed::Backend::ActiveRecord::Job do
   end
 
   describe "reserve" do
-    let(:worker) { Delayed::Worker.new(name: "worker01", read_ahead: 2) }
-
     context "multi queues and reserve one of queue" do
+
+      let(:relation_class) { Delayed::Job.limit(1).class }
+      let(:worker) { Delayed::Worker.new(name: "worker01", read_ahead: 3) }
+      let(:job) { instance_double(Delayed::Job, id: 1) }
+      let(:reserve_sql_strategy) { :optimized_sql }
+
       before do
         Delayed::Backend::ActiveRecord.configuration.run_simultaneous_queues = true
       end
 
-      it "uses the plain sql version" do
+      context "for postgres adapters" do
+        it "uses the plain sql version" do
 
-        3.times.each do | t |
-          Delayed::Backend::ActiveRecord::Job.enqueue payload_object: EnqueueJobMod.new, queue: "test_#{t}"
-          Delayed::Backend::ActiveRecord::Job.enqueue payload_object: EnqueueJobMod.new, queue: "test_#{t}"
+          3.times.each do | t |
+            String.new('test').delay(queue: "test_#{t}").size
+            String.new('test').delay(queue: "test_#{t}").size
+            String.new('test').delay(queue: "test_#{t}").size
+          end
+          expect(Delayed::Backend::ActiveRecord::Job.where(locked_at: nil).count).to eq(9)
+          6.times.each do | t |
+            Delayed::Worker.new.send(:reserve_and_run_one_job)
+          end
+          expect(Delayed::Backend::ActiveRecord::Job.where(locked_at: nil).count).to eq(3)
         end
-        allow(Time).to receive(:now).and_return(Time.now + 20.minutes)
-
-        Delayed::Backend::ActiveRecord::Job.reserve(worker)
       end
     end
+  end
   describe "reserve_with_scope" do
     let(:relation_class) { Delayed::Job.limit(1).class }
     let(:worker) { instance_double(Delayed::Worker, name: "worker01", read_ahead: 1) }

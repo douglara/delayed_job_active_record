@@ -51,8 +51,7 @@ module Delayed
         scope :unique_job_for_queues, lambda {
           queues_running = self.all.distinct.pluck(:queue)
           return if queues_running.count <= 1
-
-          group(:queue)
+          where(queue: queues_running.sample)
         }
 
         before_save :set_default_run_at
