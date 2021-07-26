@@ -49,9 +49,7 @@ module Delayed
         scope :max_priority, lambda { where("priority <= ?", Worker.max_priority) if Worker.max_priority }
         scope :for_queues, lambda { |queues = Worker.queues| where(queue: queues).limit(1) if Array(queues).any? }
         scope :unique_job_for_queues, lambda {
-          queues_running = self.all.distinct.pluck(:queue)
-          return if queues_running.count <= 1
-          where(queue: queues_running.sample)
+          where(queue: self.all.distinct.pluck(:queue).sample) if self.all.distinct.pluck(:queue).count <= 1
         }
 
         before_save :set_default_run_at
