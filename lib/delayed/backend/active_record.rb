@@ -48,9 +48,15 @@ module Delayed
         scope :min_priority, lambda { where("priority >= ?", Worker.min_priority) if Worker.min_priority }
         scope :max_priority, lambda { where("priority <= ?", Worker.max_priority) if Worker.max_priority }
         scope :for_queues, lambda { |queues = Worker.queues| where(queue: queues).limit(1) if Array(queues).any? }
-        scope :unique_job_for_queues, lambda {
-          where(queue: self.all.distinct.pluck(:queue).sample) if self.all.distinct.pluck(:queue).count <= 1
-        }
+        
+        def self.unique_job_for_queues(ready_scope)
+          queues = self.all.distinct.pluck(:queue)
+          if queues.count >= 1
+            return ready_scope.where(queue: queues.sample)
+          else
+            return ready_scope
+          end
+        end
 
         before_save :set_default_run_at
 
@@ -91,7 +97,7 @@ module Delayed
             .for_queues
             .by_priority
 
-          ready_scope = ready_scope.unique_job_for_queues if Delayed::Backend::ActiveRecord.configuration.run_simultaneous_queues == true
+          ready_scope = unique_job_for_queues(ready_scope) if Delayed::Backend::ActiveRecord.configuration.run_simultaneous_queues == true
 
           reserve_with_scope(ready_scope, worker, db_time_now)
         end
