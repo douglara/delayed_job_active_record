@@ -46,11 +46,11 @@ describe Delayed::Backend::ActiveRecord::Job do
             String.new('test').delay(queue: "test_#{t}").size
             String.new('test').delay(queue: "test_#{t}").size
           end
-          expect(Delayed::Backend::ActiveRecord::Job.where(locked_at: nil).count).to eq(9)
+          expect(Delayed::Backend::ActiveRecord::Job.count).to eq(9)
           6.times.each do | t |
             Delayed::Worker.new.send(:reserve_and_run_one_job)
           end
-          expect(Delayed::Backend::ActiveRecord::Job.where(locked_at: nil).count).to eq(3)
+          expect(Delayed::Backend::ActiveRecord::Job.count).to eq(3)
         end
       end
     end
